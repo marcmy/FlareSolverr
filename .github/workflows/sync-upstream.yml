@@ -52,10 +52,13 @@ jobs:
           fork_owned=(
             ".github/workflows/sync-upstream.yml"
             ".github/workflows/build-artifacts.yml"
+            ".github/workflows/tests.yml"
             ".github/workflows/supply-chain-audit.yml"
             ".github/workflows/codeql.yml"
             ".github/codeql/codeql-config.yml"
             ".github/dependabot.yml"
+            "build-requirements.txt"
+            "tests/test_api_smoke.py"
           )
 
           # Upstream release automation is intentionally disabled in this fork.
