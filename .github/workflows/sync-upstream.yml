@@ -53,6 +53,7 @@ jobs:
             ".github/workflows/sync-upstream.yml"
             ".github/workflows/build-artifacts.yml"
             ".github/workflows/supply-chain-audit.yml"
+            ".github/workflows/codeql-advanced.yml"
             ".github/workflows/autotag.yml"
             ".github/dependabot.yml"
           )
