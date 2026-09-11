@@ -122,12 +122,19 @@ def create_proxy_extension(proxy: dict) -> str:
         password
     )
 
-    proxy_extension_dir = tempfile.mkdtemp()
+    # mkdtemp creates the directory with permissions restricted to the current
+    # user. Chrome requires an unpacked extension here, so the credentials must
+    # exist briefly as extension script data on disk.
+    proxy_extension_dir = tempfile.mkdtemp(prefix="flaresolverr-proxy-")
 
     with open(os.path.join(proxy_extension_dir, "manifest.json"), "w") as f:
         f.write(manifest_json)
 
     with open(os.path.join(proxy_extension_dir, "background.js"), "w") as f:
+        # This is intentional, transient storage required by Chrome's proxy-auth
+        # extension API. get_webdriver() removes the private temp directory in a
+        # finally block whether Chrome startup succeeds or fails.
+        # codeql[py/clear-text-storage-sensitive-data]
         f.write(background_js)
 
     return proxy_extension_dir
@@ -209,16 +216,18 @@ def get_webdriver(proxy: dict = None) -> WebDriver:
         logging.error("Error starting Chrome: %s" % e)
         # No point in continuing if we cannot retrieve the driver
         raise e
+    finally:
+        # Authenticated proxy credentials live inside this unpacked extension.
+        # Remove it even when Chrome startup raises, so credentials cannot be
+        # stranded in the temporary directory after a failed launch.
+        if proxy_extension_dir is not None:
+            shutil.rmtree(proxy_extension_dir)
 
     # save the patched driver to avoid re-downloads
     if driver_exe_path is None:
         PATCHED_DRIVER_PATH = os.path.join(driver.patcher.data_path, driver.patcher.exe_name)
         if PATCHED_DRIVER_PATH != driver.patcher.executable_path:
             shutil.copy(driver.patcher.executable_path, PATCHED_DRIVER_PATH)
-
-    # clean up proxy extension directory
-    if proxy_extension_dir is not None:
-        shutil.rmtree(proxy_extension_dir)
 
     # selenium vanilla
     # options = webdriver.ChromeOptions()
