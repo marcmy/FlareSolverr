@@ -54,8 +54,16 @@ jobs:
             ".github/workflows/build-artifacts.yml"
             ".github/workflows/supply-chain-audit.yml"
             ".github/workflows/codeql.yml"
-            ".github/workflows/autotag.yml"
             ".github/dependabot.yml"
+          )
+
+          # Upstream release automation is intentionally disabled in this fork.
+          # Keep these files deleted even if future upstream commits change or
+          # re-add them.
+          fork_disabled=(
+            ".github/workflows/autotag.yml"
+            ".github/workflows/release-docker.yml"
+            ".github/workflows/release.yml"
           )
 
           restore_fork_owned_files() {
@@ -64,6 +72,16 @@ jobs:
               if git cat-file -e "${original_head}:${path}" 2>/dev/null; then
                 git checkout "$original_head" -- "$path"
               fi
+            done
+          }
+
+          remove_fork_disabled_files() {
+            local path
+            for path in "${fork_disabled[@]}"; do
+              if git ls-files -u -- "$path" | grep -q .; then
+                echo "Resolving disabled upstream workflow as deleted: $path"
+              fi
+              git rm -f --ignore-unmatch -- "$path"
             done
           }
 
@@ -105,6 +123,11 @@ jobs:
           # the pre-merge copy so upstream automation cannot overwrite it.
           restore_fork_owned_files
 
+          # Resolve disabled workflow conflicts explicitly as deletions before
+          # considering any remaining conflicts. This never chooses ours/theirs
+          # for source files or other semantic conflicts.
+          remove_fork_disabled_files
+
           # Resolve only conflicts whose two sides differ solely by line endings
           # or trailing whitespace. Anything semantically different stays a hard
           # failure instead of guessing and risking custom source changes.
@@ -141,6 +164,14 @@ jobs:
                 git merge --abort || true
                 exit 1
               fi
+            fi
+          done
+
+          for path in "${fork_disabled[@]}"; do
+            if [[ -e "$path" ]] || git ls-files --error-unmatch "$path" >/dev/null 2>&1; then
+              echo "::error::Disabled upstream workflow was restored: $path"
+              git merge --abort || true
+              exit 1
             fi
           done
 
