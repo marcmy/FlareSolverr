@@ -1,0 +1,190 @@
+name: Build custom artifacts
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - "src/**"
+      - "resources/**"
+      - "requirements.txt"
+      - "package.json"
+      - ".github/workflows/build-artifacts.yml"
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: FlareSolverr branch, tag, or commit to build
+        required: false
+        default: master
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: build-custom-${{ inputs.source_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-windows:
+    name: Windows x64
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    outputs:
+      source_sha: ${{ steps.revision.outputs.sha }}
+      source_short_sha: ${{ steps.revision.outputs.short_sha }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
+          persist-credentials: false
+
+      - name: Record source revision
+        id: revision
+        shell: pwsh
+        run: |
+          $sha = git rev-parse HEAD
+          $shortSha = git rev-parse --short=12 HEAD
+          "sha=$sha" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "short_sha=$shortSha" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install build dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check -r requirements.txt
+          python -m pip install --disable-pip-version-check pyinstaller==6.22.2
+
+      - name: Build Windows package
+        shell: pwsh
+        run: |
+          Push-Location src
+          python build_package.py
+          if ($LASTEXITCODE -ne 0) { throw "FlareSolverr Windows package build failed" }
+          Pop-Location
+
+      - name: Prepare Windows artifact
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path upload | Out-Null
+          Expand-Archive -Path dist/flaresolverr_windows_x64.zip -DestinationPath upload -Force
+
+          $packageDir = Join-Path $PWD "upload/flaresolverr"
+          if (!(Test-Path (Join-Path $packageDir "flaresolverr.exe"))) {
+            throw "Expected flaresolverr.exe was not found after extracting the package"
+          }
+
+          @(
+            "repository: ${{ github.repository }}",
+            "requested ref: ${{ inputs.source_ref || github.ref }}",
+            "commit: ${{ steps.revision.outputs.sha }}",
+            "platform: Windows x64",
+            "Python: 3.11",
+            "PyInstaller: 6.22.2"
+          ) | Set-Content -Path (Join-Path $packageDir "build-info.txt")
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: FlareSolverr-Custom_Windows-x64-${{ steps.revision.outputs.short_sha }}
+          path: upload
+          if-no-files-found: error
+          retention-days: 30
+
+  build-linux:
+    name: Linux x64
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
+          persist-credentials: false
+
+      - name: Record source revision
+        id: revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$(git rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check -r requirements.txt
+          python -m pip install --disable-pip-version-check pyinstaller==6.22.2
+
+      - name: Build Linux package
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd src
+          python build_package.py
+
+      - name: Prepare Linux artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p upload
+          tar -xzf dist/flaresolverr_linux_x64.tar.gz -C upload
+          test -x upload/flaresolverr/flaresolverr
+          cat > upload/flaresolverr/build-info.txt <<INFO
+          repository: ${{ github.repository }}
+          requested ref: ${{ inputs.source_ref || github.ref }}
+          commit: ${{ steps.revision.outputs.sha }}
+          platform: Linux x64
+          Python: 3.11
+          PyInstaller: 6.22.2
+          INFO
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: FlareSolverr-Custom_Linux-x64-${{ steps.revision.outputs.short_sha }}
+          path: upload
+          if-no-files-found: error
+          retention-days: 30
+
+  update-scoop:
+    name: Trigger scoop-bucket Excavator
+    needs:
+      - build-windows
+      - build-linux
+    if: >-
+      github.ref == 'refs/heads/master' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: scoop-bucket
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Dispatch flaresolverr-custom update
+        uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
+        with:
+          token: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+          repository: marcmy/scoop-bucket
+          event-type: flaresolverr-custom-built
+          client-payload: >-
+            {"run_id":"${{ github.run_id }}","head_sha":"${{ needs.build-windows.outputs.source_sha }}"}
