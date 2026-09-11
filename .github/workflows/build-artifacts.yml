@@ -10,6 +10,15 @@ on:
       - "requirements.txt"
       - "package.json"
       - ".github/workflows/build-artifacts.yml"
+  pull_request:
+    branches:
+      - master
+    paths:
+      - "src/**"
+      - "resources/**"
+      - "requirements.txt"
+      - "package.json"
+      - ".github/workflows/build-artifacts.yml"
   workflow_dispatch:
     inputs:
       source_ref:

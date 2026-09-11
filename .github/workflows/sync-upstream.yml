@@ -52,10 +52,8 @@ jobs:
           fork_owned=(
             ".github/workflows/sync-upstream.yml"
             ".github/workflows/build-artifacts.yml"
-            ".github/workflows/codeql-fork.yml"
             ".github/workflows/supply-chain-audit.yml"
             ".github/dependabot.yml"
-            ".github/codeql/codeql-config.yml"
           )
 
           restore_fork_owned_files() {

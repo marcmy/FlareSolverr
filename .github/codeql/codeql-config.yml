@@ -1,4 +1,0 @@
-name: FlareSolverr fork CodeQL configuration
-
-queries:
-  - uses: security-extended
