@@ -7,6 +7,9 @@ on:
 
 jobs:
   tag-release:
+    # Upstream release automation depends on FlareSolverr/FlareSolverr's GH_PAT.
+    # Keep the workflow in sync with upstream, but do not run it in this fork.
+    if: github.repository == 'FlareSolverr/FlareSolverr'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
