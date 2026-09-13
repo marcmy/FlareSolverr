@@ -123,7 +123,7 @@ jobs:
           solution = body.solution
           assert TestFlareSolverr.cloudflare_url in solution.url
           assert solution.status == 200
-          assert "<title>nowSecure</title>" in solution.response
+          assert "NOWSECURE" in solution.response.upper()
           assert "Chrome/" in solution.userAgent
 
           if body.message == "Challenge solved!":
