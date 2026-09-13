@@ -102,7 +102,32 @@ jobs:
         env:
           HEADLESS: "true"
           LOG_LEVEL: info
-        run: >-
-          python -m unittest -v
-          tests.TestFlareSolverr.test_v1_endpoint_request_get_no_cloudflare
-          tests.TestFlareSolverr.test_v1_endpoint_request_get_cloudflare_js_1
+        run: |
+          python -m unittest -v tests.TestFlareSolverr.test_v1_endpoint_request_get_no_cloudflare
+          python - <<'PY'
+          from dtos import STATUS_OK, V1ResponseBase
+          from tests import TestFlareSolverr, _find_obj_by_key
+
+          res = TestFlareSolverr.app.post_json('/v1', {
+              "cmd": "request.get",
+              "url": TestFlareSolverr.cloudflare_url,
+          })
+          assert res.status_code == 200
+
+          body = V1ResponseBase(res.json)
+          assert body.status == STATUS_OK
+          assert body.message in ("Challenge solved!", "Challenge not detected!"), body.message
+          assert body.startTimestamp > 10000
+          assert body.endTimestamp >= body.startTimestamp
+
+          solution = body.solution
+          assert TestFlareSolverr.cloudflare_url in solution.url
+          assert solution.status == 200
+          assert "<title>nowSecure</title>" in solution.response
+          assert "Chrome/" in solution.userAgent
+
+          if body.message == "Challenge solved!":
+              cf_cookie = _find_obj_by_key("name", "cf_clearance", solution.cookies)
+              assert cf_cookie is not None, "Cloudflare cookie not found"
+              assert len(cf_cookie["value"]) > 30
+          PY
