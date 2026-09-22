@@ -9,6 +9,6 @@ certifi==2026.7.22
 websockets==17.1
 packaging==26.3
 # Only required for Linux and macOS
-xvfbwrapper==0.2.29; platform_system != "Windows"
+xvfbwrapper==0.2.34; platform_system != "Windows"
 # Only required for Windows
 pefile==2024.8.26; platform_system == "Windows"
