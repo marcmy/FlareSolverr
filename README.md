@@ -209,6 +209,11 @@ session. When you no longer need to use a session you should make sure to close 
 > **Warning**
 > If you want to use Cloudflare clearance cookie in your scripts, make sure you use the FlareSolverr User-Agent too. If they don't match you will see the challenge.
 
+Browser/session startup counts against `maxTimeout`; challenge solving receives
+the remaining budget. Startup is synchronous and cannot be forcibly interrupted
+by this timer. Browser cleanup runs before the response, so clients should allow
+additional time beyond `maxTimeout` to receive timeout errors and cleanup results.
+
 Example response from running the `curl` above:
 
 ```json
