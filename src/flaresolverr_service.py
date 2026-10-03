@@ -227,6 +227,7 @@ def _cmd_sessions_destroy(req: V1RequestBase) -> V1ResponseBase:
 
 def _resolve_challenge(req: V1RequestBase, method: str) -> ChallengeResolutionT:
     timeout = int(req.maxTimeout) / 1000
+    deadline = time.monotonic() + timeout
     driver = None
     try:
         if req.session:
@@ -244,16 +245,24 @@ def _resolve_challenge(req: V1RequestBase, method: str) -> ChallengeResolutionT:
         else:
             driver = utils.get_webdriver(req.proxy)
             logging.debug('New instance of webdriver has been created to perform the request')
-        return func_timeout(timeout, _evil_logic, (req, driver, method))
+        # Browser/session startup consumes the same budget as navigation and
+        # challenge solving. Teardown still happens in finally before replying.
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise FunctionTimedOut()
+        return func_timeout(remaining, _evil_logic, (req, driver, method))
     except FunctionTimedOut:
         raise Exception(f'Error solving the challenge. Timeout after {timeout} seconds.')
     except Exception as e:
         raise Exception('Error solving the challenge. ' + str(e).replace('\n', '\\n'))
     finally:
         if not req.session and driver is not None:
-            if utils.PLATFORM_VERSION == "nt":
-                driver.close()
-            driver.quit()
+            # quit closes every window. A separate close can fail and previously
+            # prevented quit, leaking a browser after a timed-out request.
+            try:
+                driver.quit()
+            except Exception:
+                logging.warning('Failed to clean up the request browser', exc_info=True)
             logging.debug('A used instance of webdriver has been destroyed')
 
 
