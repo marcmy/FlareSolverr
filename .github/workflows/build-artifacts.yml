@@ -82,6 +82,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "FlareSolverr Windows package build failed" }
           Pop-Location
 
+      - name: Add Windows desktop launcher
+        shell: pwsh
+        run: python .github/fork/build_windows_desktop.py
+
       - name: Prepare Windows artifact
         shell: pwsh
         run: |
@@ -112,9 +116,12 @@ jobs:
           $env:PORT = "8199"
           $env:HEADLESS = "true"
           $env:LOG_LEVEL = "info"
+          $env:LOG_FILE = Join-Path $env:RUNNER_TEMP "flaresolverr-smoke.log"
 
           $process = Start-Process `
             -FilePath (Join-Path $packageDir "flaresolverr.exe") `
+            -ArgumentList "--no-tray" `
+            -WindowStyle Hidden `
             -PassThru `
             -RedirectStandardOutput $stdout `
             -RedirectStandardError $stderr
@@ -138,6 +145,7 @@ jobs:
             if (-not $healthy) {
               if (Test-Path $stdout) { Get-Content $stdout }
               if (Test-Path $stderr) { Get-Content $stderr }
+              if (Test-Path $env:LOG_FILE) { Get-Content $env:LOG_FILE }
               throw "Packaged Windows executable did not pass the /health smoke test"
             }
           } finally {
