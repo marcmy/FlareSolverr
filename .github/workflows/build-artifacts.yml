@@ -11,6 +11,7 @@ on:
       - "build-requirements.txt"
       - "package.json"
       - ".github/workflows/build-artifacts.yml"
+      - ".github/fork/**"
   pull_request:
     branches:
       - master
@@ -21,6 +22,7 @@ on:
       - "build-requirements.txt"
       - "package.json"
       - ".github/workflows/build-artifacts.yml"
+      - ".github/fork/**"
   workflow_dispatch:
     inputs:
       source_ref:
