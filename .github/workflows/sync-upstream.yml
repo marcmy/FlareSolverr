@@ -58,6 +58,7 @@ jobs:
             ".github/codeql/codeql-config.yml"
             ".github/dependabot.yml"
             "build-requirements.txt"
+            ".github/fork/resolve_requirements_conflict.py"
             "tests/test_api_smoke.py"
           )
 
@@ -136,6 +137,15 @@ jobs:
           # or trailing whitespace. Anything semantically different stays a hard
           # failure instead of guessing and risking custom source changes.
           resolve_equivalent_conflicts
+
+          # Accept only safe, monotonic version-only pin changes in requirements.txt.
+          # Package additions/removals, markers, downgrades, and all other source
+          # conflicts remain blocked for manual review.
+          if git ls-files -u -- requirements.txt | grep -q .; then
+            if python3 .github/fork/resolve_requirements_conflict.py; then
+              git add -- requirements.txt
+            fi
+          fi
 
           unresolved="$(git diff --name-only --diff-filter=U)"
           if [[ -n "$unresolved" ]]; then
