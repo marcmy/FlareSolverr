@@ -1,3 +1,9 @@
+if __name__ == "__main__":
+    # PyInstaller needs this on every platform before imports can start worker
+    # processes. Python 3.14+ uses forkserver by default on POSIX.
+    import multiprocessing
+    multiprocessing.freeze_support()
+
 import json
 import logging
 import os
@@ -72,12 +78,6 @@ if __name__ == "__main__":
     # check python version
     if sys.version_info < (3, 9):
         raise Exception("The Python version is less than 3.9, a version equal to or higher is required.")
-
-    # fix for HEADLESS=false in Windows binary
-    # https://stackoverflow.com/a/27694505
-    if os.name == 'nt':
-        import multiprocessing
-        multiprocessing.freeze_support()
 
     # fix ssl certificates for compiled binaries
     # https://github.com/pyinstaller/pyinstaller/issues/7229
